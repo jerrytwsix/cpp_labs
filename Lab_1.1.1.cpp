@@ -2,7 +2,6 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cassert>
 
 class Matrix
 {
@@ -12,6 +11,8 @@ private:
 	int **arr;
 	friend class Row;
 	friend class Column;
+	friend std::istream& operator >> (std::istream& ost, const Matrix& matrix);
+	friend std::ostream& operator << (std::ostream& ost, const Matrix& matrix);
 
 
 	class Row
@@ -23,7 +24,10 @@ private:
 
 		int& operator[](uint32_t num)
 		{
-			assert(num < matrix.size);
+			if (num > matrix.size)
+			{
+				throw("Matrix sizes don't fit while using operator ()[]");
+			}
 			return matrix.arr[row_num][num];
 		}
 	};
@@ -38,24 +42,15 @@ private:
 
 		int& operator[](uint32_t num)
 		{
-			assert(num < matrix.size);
+			if (num > matrix.size)
+			{
+				throw("Matrix sizes don't fit while using operator [][]");
+			}
 			return matrix.arr[num][column_num];
 		}
 	};
-
-
-public:
-	
-	
-	Matrix() : size(0)
+	void alloc(size_t size)
 	{
-		arr = NULL;
-	}
-
-	
-	Matrix(size_t size)
-	{
-		assert(size >= 0);
 		this->size = size;
 		arr = new int*[size];
 		for (size_t i = 0; i < size; ++i)
@@ -63,19 +58,33 @@ public:
 			arr[i] = new int[size];
 			memset(arr[i], 0, size * sizeof(int));
 		}
+	}
+
+public:
+	
+	
+	Matrix() : size(0), arr(nullptr) {}
+
+	
+	Matrix(size_t size)
+	{
+		if (size < 0)
+		{
+			throw("Matrix size is less than 0");
+		}
+		alloc(size);
 	}
 	
 	
 	Matrix(size_t size, int *diag_arr) 
 	{
-		//assert(size >= 0 && sizeof(diag_arr)/sizeof(int) == size); // sizeof(diag_arr) - ptr to the first elem of array, no way
-		assert(size >= 0);
-		this->size = size;
-		arr = new int*[size];
+		if (size < 0)
+		{
+			throw("Matrix size is less than 0");
+		}
+		alloc(size);
 		for (size_t i = 0; i < size; ++i)
 		{
-			arr[i] = new int[size];
-			memset(arr[i], 0, size * sizeof(int));
 			arr[i][i] = diag_arr[i];
 		}
 	}
@@ -93,61 +102,6 @@ public:
 		}
 	}
 
-
-	void inputFromFile(char* filename)
-	{
-		std::ifstream fin(filename);
-		for (size_t i = 0; i < size; i++)
-		{
-			for (size_t j = 0; j < size; j++)
-			{
-				fin >> arr[i][j];
-			}
-		}
-		fin.close();
-	}
-	
-	
-	void outputToFile(char* filename)
-	{
-		std::ofstream fout(filename);
-		for (size_t i = 0; i < size; i++)
-		{
-			for (size_t j = 0; j < size; j++)
-			{
-				fout << arr[i][j] << " ";
-			}
-			fout << std::endl;
-		}
-		fout.close();
-	}
-
-	
-	void consoleInput()
-	{
-		for (size_t i = 0; i < size; i++)
-		{
-			for (size_t j = 0; j < size; j++)
-			{
-				std::cin >> arr[i][j];
-			}
-		}
-	}
-
-	
-	void consoleOutput()
-	{
-		for (size_t i = 0; i < size; i++)
-		{
-			for (size_t j = 0; j < size; j++)
-			{
-				std::cout << arr[i][j] << ' ';
-			}
-			std::cout << std::endl;
-		}
-	}
-
-	
 	Matrix operator=(const Matrix& that)
 	{
 		if (this != &that)
@@ -168,7 +122,10 @@ public:
 
 	Matrix operator+(const Matrix& that)
 	{
-		assert(size == that.size);
+		if (size != that.size)
+		{
+			throw("Matrix sizes don't fit while using operator +");;
+		}
 		Matrix result(size);
 		for (size_t i = 0; i < size; ++i)
 		{
@@ -183,7 +140,10 @@ public:
 	
 	Matrix operator*(const Matrix& that)
 	{
-		assert(size == that.size);
+		if (size != that.size)
+		{
+			throw("Matrix sizes don't fit while using operator *");;
+		}
 		Matrix result(size);
 		for (size_t i = 0; i < size; ++i)
 		{
@@ -202,7 +162,10 @@ public:
 	
 	bool operator ==(const Matrix& that) 
 	{
-		assert(size == that.size);
+		if (size != that.size)
+		{
+			throw("Matrix sizes don't fit while using operator ==");;
+		}
 		for (size_t i = 0; i < size; ++i)
 		{
 			for (size_t j = 0; j < size; ++j)
@@ -219,11 +182,7 @@ public:
 	
 	bool operator !=(const Matrix& that) 
 	{
-		if (this == &that) 
-		{
-			return false;
-		}
-		return true;
+		return !(this == &that);
 	}
 	
 	
@@ -243,7 +202,10 @@ public:
 	
 	Matrix operator ()(uint32_t row, uint32_t column)
 	{
-		assert(row < size, column < size);
+		if (row >= size || column >= size)
+		{
+			throw("Matrix sizes don't fit while using operator ()");
+		}
 		row--;
 		column--;
 		Matrix result(size - 1);
@@ -264,7 +226,10 @@ public:
 	
 	Row operator [](uint32_t row_num)
 	{
-		assert(row_num < size);
+		if (row_num >= size)
+		{
+			throw("Matrix sizes don't fit while using operator []");
+		}
 		Row row(*this, row_num);
 		return row;
 	}
@@ -272,7 +237,10 @@ public:
 
 	Column operator ()(uint32_t column_num)
 	{
-		assert(column_num < size);
+		if (column_num >= size)
+		{
+			throw("Matrix sizes don't fit while using operator ()");
+		}
 		Column column(*this, column_num);
 		return column;
 	}
@@ -280,11 +248,41 @@ public:
 
 	~Matrix()
 	{
+		for (size_t i = 0; i < size; ++i)
+		{
+			delete[] arr[i];
+		}
 		delete[] arr;
 	}
 
-
 };
+
+
+std::istream& operator >> (std::istream& ost, const Matrix& matrix)
+{
+	for (size_t i = 0; i < matrix.size; i++)
+	{
+		for (size_t j = 0; j < matrix.size; j++)
+		{
+			ost >> matrix.arr[i][j];
+		}
+	}
+	return ost;
+}
+
+
+std::ostream& operator << (std::ostream& ost, const Matrix& matrix)
+{
+	for (size_t i = 0; i < matrix.size; i++)
+	{
+		for (size_t j = 0; j < matrix.size; j++)
+		{
+			ost << matrix.arr[i][j] << ' ';
+		}
+		ost << std::endl;
+	}
+	return ost;
+}
 
 
 int main() 
@@ -295,12 +293,12 @@ int main()
 	for (size_t i = 0; i < N; i++)
 		arr[i] = k;
 	Matrix A(N), B(N), C(N), D(N), K(N, arr), result(N);
-	A.consoleInput();
-	B.consoleInput();
-	C.consoleInput();
-	D.consoleInput();
+	std::cin >> A;
+	std::cin >> B;
+	std::cin >> C;
+	std::cin >> D;
 	result = (A + B * !C + K) * !D;
-	result.consoleOutput();
+	std::cout << result;
 	delete[] arr;
 	return 0;
 }
