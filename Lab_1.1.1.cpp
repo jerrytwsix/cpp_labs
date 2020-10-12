@@ -49,6 +49,8 @@ private:
 			return matrix.arr[num][column_num];
 		}
 	};
+	
+	
 	void alloc(size_t size)
 	{
 		this->size = size;
@@ -60,6 +62,15 @@ private:
 		}
 	}
 
+	
+	void dealloc()
+	{
+		for (size_t i = 0; i < size; ++i)
+		{
+			delete[] arr[i];
+		}
+		delete[] arr;	
+	}
 public:
 	
 	
@@ -106,11 +117,7 @@ public:
 	{
 		if (this != &that)
 		{
-			for (size_t i = 0; i < size; ++i)
-		        {
-			        delete[] arr[i];
-		        }
-		        delete[] arr;
+			dealloc();
                         size = that.size;
                         alloc(size);
 			for (size_t i = 0; i < size; ++i)
@@ -251,11 +258,7 @@ public:
 
 	~Matrix()
 	{
-		for (size_t i = 0; i < size; ++i)
-		{
-			delete[] arr[i];
-		}
-		delete[] arr;
+		dealloc();
 	}
 
 };
