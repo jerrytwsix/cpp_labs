@@ -106,12 +106,15 @@ public:
 	{
 		if (this != &that)
 		{
-			delete[] arr;
-			size = that.size;
-			arr = new int*[size];
+			for (size_t i = 0; i < size; ++i)
+		        {
+			        delete[] arr[i];
+		        }
+		        delete[] arr;
+                        size = that.size;
+                        alloc(size);
 			for (size_t i = 0; i < size; ++i)
 			{
-				arr[i] = new int[size];
 				for (size_t j = 0; j < size; ++j)
 					arr[i][j] = that.arr[i][j];
 			}
