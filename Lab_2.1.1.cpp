@@ -259,7 +259,7 @@ public:
 
 	Equation* simplify_equation()
 	{
-		if (left->eq_to_str() == right->eq_to_str())
+		if (left->simplify_equation()->eq_to_str() == right->simplify_equation()->eq_to_str())
 		{
 			return new Number(0);
 		}
