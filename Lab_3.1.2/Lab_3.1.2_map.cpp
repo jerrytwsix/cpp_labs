@@ -32,7 +32,7 @@ class HashMap
 public:
 	HashMap() : block_size(1), overflow_koef(0.75), size(0), size_non_null(0)
 	{
-		items = new Pair<K, V>[block_size]; 
+		items = new Pair<K, V>[block_size];
 	};
 
 
@@ -175,24 +175,15 @@ public:
 				pair_key = pair_ptr->_key;
 				pair_value = pair_ptr->_value;
 			}
-			return Iterator (pair_ptr);
+			return Iterator(pair_ptr);
 		}
 
 
 		Iterator operator++(int n)
 		{
-			if (pair_ptr->_last)
-			{
-				pair_ptr = nullptr;
-				return Iterator(nullptr);
-			}
-			else
-			{
-				pair_ptr++;
-				pair_key = pair_ptr->_key;
-				pair_value = pair_ptr->_value;
-			}
-			return Iterator(--pair_ptr);
+			Iterator temp = this;
+			++this;
+			return temp;
 		}
 	};
 
@@ -201,7 +192,6 @@ public:
 	{
 		size_t i = 0;
 		Iterator iter(&items[i]);
-		items[block_size - 1]._last = true;
 		return iter;
 	}
 
@@ -209,6 +199,7 @@ public:
 	Iterator end()
 	{
 		Iterator iter(nullptr);
+		items[block_size - 1]._last = true;
 		return iter;
 	}
 
@@ -236,7 +227,7 @@ private:
 	void rehash()
 	{
 		HashMap new_map(block_size * 2);
-		for (auto i = begin(), e = end(); i != e; ++i)
+		for (auto i = begin(); i != end(); ++i)
 		{
 			if (i.pair_ptr->_avaible)
 				new_map.insert(i.pair_key, i.pair_value);
@@ -249,7 +240,7 @@ private:
 
 
 template <typename K, typename V>
-class MultiHashMap: public HashMap <K, V>
+class MultiHashMap : public HashMap <K, V>
 {
 public:
 	MultiHashMap() : HashMap<K, V>()
