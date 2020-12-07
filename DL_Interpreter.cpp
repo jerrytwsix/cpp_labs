@@ -1,7 +1,6 @@
-#include <iostream>
+include <iostream>
 #include <string>
 #include <vector>
-#include <list>
 #include <unordered_map>
 #include <algorithm>
 #include <fstream>
@@ -22,9 +21,9 @@ public:
 unordered_map<string, Expression*> env;
 
 
-Expression* fromEnv(string id)
+Expression* fromEnv(string _id)
 {
-	auto search = env.find(id);
+	auto search = env.find(_id);
 	if (search != env.end())
 	{
 		return search->second;
@@ -39,15 +38,15 @@ Expression* fromEnv(string id)
 class Value : public Expression
 {
 public:
-	Value(int val) : _val(val){}
-	
+	Value(int val) : _val(val) {}
+
 
 	Expression* eval()
 	{
 		return copy();
 	}
 
-	
+
 	string getString()
 	{
 		return "(val " + to_string(_val) + ")";
@@ -83,8 +82,8 @@ int getValue(Expression *exp)
 class Variable : public Expression
 {
 public:
-	Variable(string id) : _id(id){}
-	
+	Variable(string _id) : _id(_id) {}
+
 
 	Expression* eval()
 	{
@@ -137,7 +136,7 @@ public:
 	}
 
 
-	~Add() 
+	~Add()
 	{
 		delete _left;
 		delete _right;
@@ -193,7 +192,7 @@ private:
 class Let : public Expression
 {
 public:
-	Let(string id, Expression *e1, Expression *e2) : _id(id), _e1(e1), _e2(e2) {}
+	Let(string _id, Expression *e1, Expression *e2) : _id(_id), _e1(e1), _e2(e2) {}
 
 
 	Expression* eval()
@@ -229,7 +228,7 @@ private:
 class Function : public Expression
 {
 public:
-	Function(string id, Expression* exp) : _id(id), _exp(exp) {}
+	Function(string _id, Expression* exp) : _id(_id), _exp(exp) {}
 
 
 	Expression* eval()
@@ -306,10 +305,220 @@ private:
 };
 
 
-list <string> tokens;
+class Set : public Expression
+{
+public:
+	Set(string _id, Expression* e_val) :_id(_id), _e_val(e_val){};
+
+	Expression *eval()
+	{
+		env[_id] = _e_val->eval();
+		return copy();
+	}
+	Expression* copy()
+	{
+		return new Set(_id, _e_val->copy());
+	}
+
+	string getString()
+	{
+		return "(set " + _id + " " + _e_val->getString() + ")";
+	}
+	
+	~Set()
+	{
+		delete _e_val;
+	}
+
+private:
+	string _id;
+	Expression *_e_val;
+};
+
+class Block : public Expression
+{
+public:
+
+	Block(vector<Expression*> &income_vector) : _expr_vector(income_vector) {}
+
+	Expression *eval()
+	{
+		vector<Expression*> eval_vector;
+		for (auto iter : _expr_vector)
+		{
+			eval_vector.push_back(iter->eval());
+		}
+		return eval_vector[_expr_vector.size() - 1];
+
+	}
+
+	Expression* copy()
+	{
+		vector<Expression*> copy_vector;
+		for (auto iter : _expr_vector)
+		{
+			copy_vector.push_back(iter->copy());
+		}
+		return new Block(copy_vector);
+	}
+
+	string getString()
+	{
+		string result = "";
+		result += "(block ";
+		for (auto iter : _expr_vector)
+		{
+			result += iter->getString();
+			result+= " ";
+		}
+		result += ")";
+		return result;
+	}
+
+	~Block()
+	{}
+
+private:
+	vector<Expression*> _expr_vector;
+};
 
 
-void tokenizer(istream& in)
+class Arr : public Expression
+{
+public:
+	Arr(){}
+
+	Arr(vector<Expression*> &income_vector) : _arr(income_vector) {}
+
+	~Arr()
+	{}
+
+	Expression *eval()
+	{
+		vector<Expression*> evals;
+		for (auto iter : _arr)
+			evals.push_back(iter->eval());
+		Expression *arr_eval = new Arr(evals);
+		return arr_eval;
+	}
+
+	Expression *copy()
+	{
+		vector<Expression*> copy_vector;
+		for (auto iter : _arr)
+			copy_vector.push_back(iter->copy());
+		return new Arr(copy_vector);
+	}
+
+	Expression* operator[](int id)
+	{
+		if (id < 0 || id > _arr.size() - 1)
+		{
+			throw "ERROR";
+		}
+		return _arr[id];
+	}
+
+	string getString()
+	{
+		string result = "";
+		result += "(arr ";
+		for (size_t i = 0; i < _arr.size(); ++i)
+		{
+			result += _arr[i]->getString();
+			result += " ";
+		}
+		result += ")";
+		return result;
+	}
+
+private:
+	friend class Gen;
+	friend class At;
+	vector<Expression*> _arr;
+};
+
+class Gen : public Expression
+{
+public:
+	Gen(Expression *e_length, Expression* e_func) :_e_length(e_length), _e_func(e_func) {}
+
+	Expression* eval()
+	{
+		vector<Expression*> _e_val;
+		Arr* gen_arr = new Arr;
+		int len = getValue(_e_length->eval());
+		for (size_t i = 0; i < len; ++i)
+		{
+			Expression* arr_el = new Call(_e_func, new Value(i));
+			gen_arr->_arr.push_back(arr_el->eval());
+		}
+		return gen_arr;
+	}
+
+	Expression* copy()
+	{
+		return new Gen(_e_length->copy(), _e_func->copy());
+	}
+
+	string getString()
+	{
+		return "(gen " + _e_length->getString() + " " + _e_func->getString() + ")";
+	}
+
+	~Gen()
+	{
+		delete _e_length;
+		delete _e_func;
+	}
+
+private:
+	Expression* _e_length;
+	Expression* _e_func;
+};
+
+class At : public Expression
+{
+public:
+	At(Expression* e_array, Expression* e_index) :_e_array(e_array), _e_index(e_index) {}
+
+	Expression *eval()
+	{
+		Arr* at_arr = dynamic_cast<Arr*>(_e_array->eval());
+		if (at_arr == nullptr)
+		{
+			throw "ERROR";
+		}
+		int id = getValue(_e_index->eval());
+		if (id < 0 || id > at_arr->_arr.size() - 1)
+		{
+			throw "ERROR";
+		}
+		return (*at_arr)[id];
+	}
+
+	Expression* copy()
+	{
+		return new At(_e_array, _e_index);
+	}
+
+	string getString()
+	{
+		return "(at " + _e_array->getString() + " " + _e_index->getString() + ")";
+	}
+
+	~At()
+	{
+		delete _e_array;
+		delete _e_index;
+	}
+private:
+	Expression* _e_array;
+	Expression* _e_index;
+};
+
+
+void tokenizer(istream& in, list <string> &tokens)
 {
 	string lexem_str;
 	stringstream str;
@@ -318,38 +527,38 @@ void tokenizer(istream& in)
 
 	lexem_str = str.str();
 
-	for (size_t i = 0; i < lexem_str.length(); ++i) 
+	for (size_t i = 0; i < lexem_str.length(); ++i)
 	{
-		if (lexem_str[i] == '(') 
+		if (lexem_str[i] == '(')
 		{
 			lexem_str.insert(i + 1, " ");
 		}
-		else if (lexem_str[i] == ')') 
+		else if (lexem_str[i] == ')')
 		{
 			lexem_str.insert(i++, " ");
 		}
 	}
 	stringstream lexem_stream(lexem_str);
 
-	while (lexem_stream >> lexem_str) 
+	while (lexem_stream >> lexem_str)
 	{
 		tokens.push_back(lexem_str);
 	}
 }
 
 
-Expression* parser()
+Expression* parser(list <string> &tokens)
 {
 	Expression* res_exp = nullptr;
 	string operation;
-	while (!tokens.empty()) 
+	while (!tokens.empty())
 	{
 		operation = tokens.front();
 		tokens.pop_front();
 
 		if (operation == "(")
 		{
-			return parser();
+			return parser(tokens);
 		}
 
 		else if (operation == ")")
@@ -371,67 +580,115 @@ Expression* parser()
 
 		else if (operation == "add")
 		{
-			res_exp = new Add(parser(), parser());
+			Expression* e1, *e2;
+			e1 = parser(tokens);
+			e2 = parser(tokens);
+			res_exp = new Add(e1, e2);
 		}
 
 		else if (operation == "let")
 		{
-			string id;
+			string _id;
 			Expression* e1, *e2;
-			id = tokens.front();
+			_id = tokens.front();
 			tokens.pop_front();
 
 			if (tokens.front() != "=")
 				throw "ERROR";
 
 			tokens.pop_front();
-			e1 = parser();
+			e1 = parser(tokens);
 
 			if (tokens.front() != "in")
 				throw "ERROR";
 
 			tokens.pop_front();
-			e2 = parser();
+			e2 = parser(tokens);
 
-			res_exp = new Let(id, e1, e2);
+			res_exp = new Let(_id, e1, e2);
 		}
 
 		else if (operation == "if")
 		{
 			Expression* e1, *e2, *e_then, *e_else;
-			e1 = parser();
-			e2 = parser();
+			e1 = parser(tokens);
+			e2 = parser(tokens);
 
 			if (tokens.front() != "then")
 				throw "ERROR";
 
 			tokens.pop_front();
-			e_then = parser();
+			e_then = parser(tokens);
 
 			if (tokens.front() != "else")
 				throw "ERROR";
 
 			tokens.pop_front();
-			e_else = parser();
+			e_else = parser(tokens);
 			res_exp = new If(e1, e2, e_then, e_else);
 		}
 
 		else if (operation == "function")
 		{
-			string id = tokens.front();
+			string _id = tokens.front();
 			tokens.pop_front();
-			res_exp = new Function(id, parser());
+			res_exp = new Function(_id, parser(tokens));
 		}
 
 		else if (operation == "call")
 		{
 			Expression* e1, *e2;
-			e1 = parser();
-			e2 = parser();
+			e1 = parser(tokens);
+			e2 = parser(tokens);
 			res_exp = new Call(e1, e2);
 		}
 
-		else 
+		else if (operation == "set")
+		{
+			string _id = tokens.front();
+			tokens.pop_front();
+			res_exp = new Set(_id, parser(tokens));
+		}
+
+		else if (operation == "block")
+		{
+			vector<Expression*> expr;
+			Expression* e1;
+			while ((e1 = parser(tokens)) != nullptr)
+			{
+				expr.push_back(e1);
+			}
+			res_exp = new Block(expr);
+		}
+
+		else if (operation == "arr")
+		{
+			vector<Expression*> expr;
+			Expression* e1;
+			while ((e1 = parser(tokens)) != nullptr)
+			{
+				expr.push_back(e1);
+			}
+			res_exp = new Arr(expr);
+		}
+
+		else if (operation == "gen")
+		{
+			Expression* e1, *e2;
+			e1 = parser(tokens);
+			e2 = parser(tokens);
+			res_exp = new Gen(e1, e2);
+		}
+
+		else if (operation == "at")
+		{
+			Expression* e1, *e2;
+			e1 = parser(tokens);
+			e2 = parser(tokens);
+			res_exp = new At(e1, e2);
+		}
+
+		else
 		{
 			throw "ERROR";
 		}
@@ -449,8 +706,9 @@ int main()
 	out.open("output.txt");
 	try
 	{
-		tokenizer(in);
-		Expression *exp = parser();
+		list <string> tokens;
+		tokenizer(in, tokens);
+		Expression *exp = parser(tokens);
 		Expression *res = exp->eval();
 		out << res->getString();
 		delete exp;
