@@ -11,17 +11,14 @@ using namespace std;
 class Expression
 {
 public:
-	virtual Expression* eval() = 0;
+	virtual Expression* eval(unordered_map<string, Expression*> env) = 0;
 	virtual string getString() = 0;
 	virtual Expression* copy() = 0;
 	~Expression() = default;
 };
 
 
-unordered_map<string, Expression*> env;
-
-
-Expression* fromEnv(string _id)
+Expression* fromEnv(string _id, unordered_map<string, Expression*> env)
 {
 	auto search = env.find(_id);
 	if (search != env.end())
@@ -41,7 +38,7 @@ public:
 	Value(int val) : _val(val) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
 		return copy();
 	}
@@ -68,9 +65,9 @@ private:
 };
 
 
-int getValue(Expression *exp)
+int getValue(Expression* exp, unordered_map<string, Expression*> env)
 {
-	Value *res_ptr = dynamic_cast<Value*>(exp->eval());
+	Value* res_ptr = dynamic_cast<Value*>(exp->eval(env));
 	if (res_ptr == nullptr)
 	{
 		throw("ERROR");
@@ -85,9 +82,9 @@ public:
 	Variable(string _id) : _id(_id) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		Expression* var = fromEnv(_id);
+		Expression* var = fromEnv(_id, env);
 		if (var == nullptr)
 			throw "ERROR";
 		return var;
@@ -113,14 +110,12 @@ private:
 class Add : public Expression
 {
 public:
-	Add(Expression *left, Expression *right) : _left(left), _right(right) {}
+	Add(Expression* left, Expression* right) : _left(left), _right(right) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		int sum = getValue(_left) + getValue(_right);
-		Expression* value = new Value(sum);
-		return value;
+		return new Value(getValue(_left, env) + getValue(_right, env));
 	}
 
 
@@ -142,7 +137,7 @@ public:
 		delete _right;
 	}
 private:
-	Expression* _left, *_right;
+	Expression* _left, * _right;
 };
 
 
@@ -152,15 +147,15 @@ public:
 	If(Expression* e1, Expression* e2, Expression* e_then, Expression* e_else) : _e1(e1), _e2(e2), _e_then(e_then), _e_else(e_else) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		if (getValue(_e1->eval()) > getValue(_e2->eval()))
+		if (getValue(_e1->eval(env), env) > getValue(_e2->eval(env), env))
 		{
-			return _e_then->eval();
+			return _e_then->eval(env);
 		}
 		else
 		{
-			return _e_else->eval();
+			return _e_else->eval(env);
 		}
 	}
 
@@ -185,20 +180,20 @@ public:
 		delete _e_else;
 	}
 private:
-	Expression *_e1, *_e2, *_e_then, *_e_else;
+	Expression* _e1, * _e2, * _e_then, * _e_else;
 };
 
 
 class Let : public Expression
 {
 public:
-	Let(string _id, Expression *e1, Expression *e2) : _id(_id), _e1(e1), _e2(e2) {}
+	Let(string _id, Expression* e1, Expression* e2) : _id(_id), _e1(e1), _e2(e2) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		env[_id] = _e1->eval();
-		return _e2->eval();
+		env[_id] = _e1->eval(env);
+		return _e2->eval(env);
 	}
 
 
@@ -220,7 +215,7 @@ public:
 		delete _e2;
 	}
 private:
-	Expression *_e1, *_e2;
+	Expression* _e1, * _e2;
 	string _id;
 };
 
@@ -231,7 +226,7 @@ public:
 	Function(string _id, Expression* exp) : _id(_id), _exp(exp) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
 		return copy();
 	}
@@ -264,9 +259,9 @@ public:
 	Call(Expression* f_exp, Expression* arg_exp) : _f_exp(f_exp), _arg_exp(arg_exp) {}
 
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		Function* func = dynamic_cast<Function*>(_f_exp->eval());
+		Function* func = dynamic_cast<Function*>(_f_exp->eval(env));
 		if (func == nullptr)
 		{
 			throw "err";
@@ -274,13 +269,13 @@ public:
 		Variable* var = dynamic_cast<Variable*>(_f_exp);
 		if (var != nullptr)
 		{
-			if (fromEnv(var->_id) == nullptr)
+			if (fromEnv(var->_id, env) == nullptr)
 			{
 				throw "Err";
 			}
 		}
-		env[func->_id] = _arg_exp->eval();
-		return func->_exp->eval();
+		env[func->_id] = _arg_exp->eval(env);
+		return func->_exp->eval(env);
 	}
 
 	string getString()
@@ -301,18 +296,18 @@ public:
 	}
 
 private:
-	Expression* _f_exp, *_arg_exp;
+	Expression* _f_exp, * _arg_exp;
 };
 
 
 class Set : public Expression
 {
 public:
-	Set(string _id, Expression* e_val) :_id(_id), _e_val(e_val){};
+	Set(string _id, Expression* e_val) :_id(_id), _e_val(e_val) {};
 
-	Expression *eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		env[_id] = _e_val->eval();
+		env[_id] = _e_val->eval(env);
 		return copy();
 	}
 	Expression* copy()
@@ -324,7 +319,7 @@ public:
 	{
 		return "(set " + _id + " " + _e_val->getString() + ")";
 	}
-	
+
 	~Set()
 	{
 		delete _e_val;
@@ -332,21 +327,21 @@ public:
 
 private:
 	string _id;
-	Expression *_e_val;
+	Expression* _e_val;
 };
 
 class Block : public Expression
 {
 public:
 
-	Block(vector<Expression*> &income_vector) : _expr_vector(income_vector) {}
+	Block(vector<Expression*>& income_vector) : _expr_vector(income_vector) {}
 
-	Expression *eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
 		vector<Expression*> eval_vector;
 		for (auto iter : _expr_vector)
 		{
-			eval_vector.push_back(iter->eval());
+			eval_vector.push_back(iter->eval(env));
 		}
 		return eval_vector[_expr_vector.size() - 1];
 
@@ -369,7 +364,7 @@ public:
 		for (auto iter : _expr_vector)
 		{
 			result += iter->getString();
-			result+= " ";
+			result += " ";
 		}
 		result += ")";
 		return result;
@@ -386,23 +381,23 @@ private:
 class Arr : public Expression
 {
 public:
-	Arr(){}
+	Arr() {}
 
-	Arr(vector<Expression*> &income_vector) : _arr(income_vector) {}
+	Arr(vector<Expression*>& income_vector) : _arr(income_vector) {}
 
 	~Arr()
 	{}
 
-	Expression *eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
 		vector<Expression*> evals;
 		for (auto iter : _arr)
-			evals.push_back(iter->eval());
-		Expression *arr_eval = new Arr(evals);
+			evals.push_back(iter->eval(env));
+		Expression* arr_eval = new Arr(evals);
 		return arr_eval;
 	}
 
-	Expression *copy()
+	Expression* copy()
 	{
 		vector<Expression*> copy_vector;
 		for (auto iter : _arr)
@@ -441,17 +436,17 @@ private:
 class Gen : public Expression
 {
 public:
-	Gen(Expression *e_length, Expression* e_func) :_e_length(e_length), _e_func(e_func) {}
+	Gen(Expression* e_length, Expression* e_func) :_e_length(e_length), _e_func(e_func) {}
 
-	Expression* eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
 		vector<Expression*> _e_val;
 		Arr* gen_arr = new Arr;
-		int len = getValue(_e_length->eval());
+		int len = getValue(_e_length->eval(env), env);
 		for (size_t i = 0; i < len; ++i)
 		{
 			Expression* arr_el = new Call(_e_func, new Value(i));
-			gen_arr->_arr.push_back(arr_el->eval());
+			gen_arr->_arr.push_back(arr_el->eval(env));
 		}
 		return gen_arr;
 	}
@@ -482,14 +477,14 @@ class At : public Expression
 public:
 	At(Expression* e_array, Expression* e_index) :_e_array(e_array), _e_index(e_index) {}
 
-	Expression *eval()
+	Expression* eval(unordered_map<string, Expression*> env)
 	{
-		Arr* at_arr = dynamic_cast<Arr*>(_e_array->eval());
+		Arr* at_arr = dynamic_cast<Arr*>(_e_array->eval(env));
 		if (at_arr == nullptr)
 		{
 			throw "ERROR";
 		}
-		int id = getValue(_e_index->eval());
+		int id = getValue(_e_index->eval(env), env);
 		if (id < 0 || id > at_arr->_arr.size() - 1)
 		{
 			throw "ERROR";
@@ -518,7 +513,7 @@ private:
 };
 
 
-void tokenizer(istream& in, list <string> &tokens)
+void tokenizer(istream& in, list <string>& tokens)
 {
 	string lexem_str;
 	stringstream str;
@@ -547,7 +542,7 @@ void tokenizer(istream& in, list <string> &tokens)
 }
 
 
-Expression* parser(list <string> &tokens)
+Expression* parser(list <string>& tokens)
 {
 	Expression* res_exp = nullptr;
 	string operation;
@@ -580,7 +575,7 @@ Expression* parser(list <string> &tokens)
 
 		else if (operation == "add")
 		{
-			Expression* e1, *e2;
+			Expression* e1, * e2;
 			e1 = parser(tokens);
 			e2 = parser(tokens);
 			res_exp = new Add(e1, e2);
@@ -589,7 +584,7 @@ Expression* parser(list <string> &tokens)
 		else if (operation == "let")
 		{
 			string _id;
-			Expression* e1, *e2;
+			Expression* e1, * e2;
 			_id = tokens.front();
 			tokens.pop_front();
 
@@ -610,7 +605,7 @@ Expression* parser(list <string> &tokens)
 
 		else if (operation == "if")
 		{
-			Expression* e1, *e2, *e_then, *e_else;
+			Expression* e1, * e2, * e_then, * e_else;
 			e1 = parser(tokens);
 			e2 = parser(tokens);
 
@@ -637,7 +632,7 @@ Expression* parser(list <string> &tokens)
 
 		else if (operation == "call")
 		{
-			Expression* e1, *e2;
+			Expression* e1, * e2;
 			e1 = parser(tokens);
 			e2 = parser(tokens);
 			res_exp = new Call(e1, e2);
@@ -674,7 +669,7 @@ Expression* parser(list <string> &tokens)
 
 		else if (operation == "gen")
 		{
-			Expression* e1, *e2;
+			Expression* e1, * e2;
 			e1 = parser(tokens);
 			e2 = parser(tokens);
 			res_exp = new Gen(e1, e2);
@@ -682,7 +677,7 @@ Expression* parser(list <string> &tokens)
 
 		else if (operation == "at")
 		{
-			Expression* e1, *e2;
+			Expression* e1, * e2;
 			e1 = parser(tokens);
 			e2 = parser(tokens);
 			res_exp = new At(e1, e2);
@@ -704,20 +699,19 @@ int main()
 	in.open("input.txt");
 	ofstream out;
 	out.open("output.txt");
+	list <string> tokens;
+	tokenizer(in, tokens);
+	Expression* exp = parser(tokens);
+	unordered_map<string, Expression*> env;
 	try
 	{
-		list <string> tokens;
-		tokenizer(in, tokens);
-		Expression *exp = parser(tokens);
-		Expression *res = exp->eval();
-		out << res->getString();
-		delete exp;
-		delete res;
+		out << exp->eval(env)->getString();
 	}
 	catch (...)
 	{
 		out << "ERROR";
 	}
+	delete exp;
 	in.close();
 	out.close();
 }
