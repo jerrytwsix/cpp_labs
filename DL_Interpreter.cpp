@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <stack>
 #include <unordered_map>
 #include <algorithm>
 #include <fstream>
@@ -11,11 +12,15 @@ using namespace std;
 class Expression
 {
 public:
-	virtual Expression* eval(unordered_map<string, Expression*> env) = 0;
+	virtual Expression* eval(unordered_map<string, Expression*> &env) = 0;
 	virtual string getString() = 0;
 	virtual Expression* copy() = 0;
 	~Expression() = default;
 };
+
+
+
+stack <Expression*> bad_ptr;
 
 
 Expression* fromEnv(string _id, unordered_map<string, Expression*> env)
@@ -38,7 +43,7 @@ public:
 	Value(int val) : _val(val) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		return copy();
 	}
@@ -65,7 +70,7 @@ private:
 };
 
 
-int getValue(Expression* exp, unordered_map<string, Expression*> env)
+int getValue(Expression* exp, unordered_map<string, Expression*> &env)
 {
 	Value* res_ptr = dynamic_cast<Value*>(exp->eval(env));
 	if (res_ptr == nullptr)
@@ -82,7 +87,7 @@ public:
 	Variable(string _id) : _id(_id) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		Expression* var = fromEnv(_id, env);
 		if (var == nullptr)
@@ -113,9 +118,11 @@ public:
 	Add(Expression* left, Expression* right) : _left(left), _right(right) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
-		return new Value(getValue(_left, env) + getValue(_right, env));
+		Expression* value = new Value(getValue(_left, env) + getValue(_right, env));
+		bad_ptr.push(value);
+		return value;
 	}
 
 
@@ -147,7 +154,7 @@ public:
 	If(Expression* e1, Expression* e2, Expression* e_then, Expression* e_else) : _e1(e1), _e2(e2), _e_then(e_then), _e_else(e_else) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		if (getValue(_e1->eval(env), env) > getValue(_e2->eval(env), env))
 		{
@@ -190,7 +197,7 @@ public:
 	Let(string _id, Expression* e1, Expression* e2) : _id(_id), _e1(e1), _e2(e2) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		env[_id] = _e1->eval(env);
 		return _e2->eval(env);
@@ -226,7 +233,7 @@ public:
 	Function(string _id, Expression* exp) : _id(_id), _exp(exp) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		return copy();
 	}
@@ -259,7 +266,7 @@ public:
 	Call(Expression* f_exp, Expression* arg_exp) : _f_exp(f_exp), _arg_exp(arg_exp) {}
 
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		Function* func = dynamic_cast<Function*>(_f_exp->eval(env));
 		if (func == nullptr)
@@ -305,7 +312,7 @@ class Set : public Expression
 public:
 	Set(string _id, Expression* e_val) :_id(_id), _e_val(e_val) {};
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		env[_id] = _e_val->eval(env);
 		return copy();
@@ -336,7 +343,7 @@ public:
 
 	Block(vector<Expression*>& income_vector) : _expr_vector(income_vector) {}
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		vector<Expression*> eval_vector;
 		for (auto iter : _expr_vector)
@@ -388,7 +395,7 @@ public:
 	~Arr()
 	{}
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		vector<Expression*> evals;
 		for (auto iter : _arr)
@@ -438,7 +445,7 @@ class Gen : public Expression
 public:
 	Gen(Expression* e_length, Expression* e_func) :_e_length(e_length), _e_func(e_func) {}
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		vector<Expression*> _e_val;
 		Arr* gen_arr = new Arr;
@@ -477,7 +484,7 @@ class At : public Expression
 public:
 	At(Expression* e_array, Expression* e_index) :_e_array(e_array), _e_index(e_index) {}
 
-	Expression* eval(unordered_map<string, Expression*> env)
+	Expression* eval(unordered_map<string, Expression*> &env)
 	{
 		Arr* at_arr = dynamic_cast<Arr*>(_e_array->eval(env));
 		if (at_arr == nullptr)
@@ -712,6 +719,12 @@ int main()
 		out << "ERROR";
 	}
 	delete exp;
+	while (!bad_ptr.empty())
+	{
+		Expression* tmp = bad_ptr.top();
+		bad_ptr.pop();
+		delete tmp;
+	}
 	in.close();
 	out.close();
 }
