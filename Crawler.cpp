@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -32,7 +32,7 @@ public:
 	void parse()
 	{
 		auto time_start = chrono::high_resolution_clock::now();
-		
+
 		for (size_t i = 0; i < thread_count; ++i)
 		{
 			threads.emplace_back(&Crawler::threadParser, ref(*this));
@@ -68,54 +68,64 @@ private:
 	queue <string> links;
 	set <string> filenames;
 	mutex thread_protector;
+	atomic <int> workers;
 	chrono::duration<double> time_elapsed;
 
 
 	void threadParser()
 	{
 		ifstream input;
-		string curr_link, tmp_link, tmp_filename;
+		string curr_link, tmp_link, tmp_filename, push_link;
 		regex link_mask("(<a href=\"file://[a-za-z0-9.]+html\">)");
 		regex file_mask("([a-za-z0-9.]+html)");
 		smatch match, file_match;
 
-		while (!links.empty())
+		while (true)
 		{
 			unique_lock <mutex> locker(thread_protector);
-			
-			if (links.empty())
+
+			if (!links.empty())
+			{
+				curr_link = links.front();
+				links.pop();
+				++links_counter;
+				locker.unlock();
+
+				workers++;
+				while (regex_search(curr_link, match, link_mask))
+				{
+					tmp_filename = match.str();
+					regex_search(tmp_filename, file_match, file_mask);
+					curr_link = match.suffix().str();
+					tmp_filename = file_match.str();
+					locker.lock();
+					if (!filenames.count(tmp_filename))
+					{
+						push_link = { 0 };
+						input.open("test_data/" + tmp_filename);
+
+						while (getline(input, tmp_link))
+						{
+							push_link += tmp_link;
+						}
+
+						input.close();
+						filenames.insert(tmp_filename);
+						links.push(push_link);
+					}
+					locker.unlock();
+				}
+				workers--;
+			}
+			else
 			{
 				locker.unlock();
-				break;
-			}
-
-			curr_link = links.front();
-			links.pop();
-			++links_counter;
-			locker.unlock();
-
-			while (regex_search(curr_link, match, link_mask))
-			{
-				tmp_filename = match.str();
-				regex_search(tmp_filename, file_match, file_mask);
-				curr_link = match.suffix().str();
-				tmp_filename = file_match.str();
-
-				if (filenames.find(tmp_filename) == filenames.end())
+				while (links.empty())
 				{
-					locker.lock();
-					input.open("test_data/" + tmp_filename);
-					
-					while (input)
+					if (!workers)
 					{
-						getline(input, tmp_link);
+						return;
 					}
-					
-					input.close();
-					locker.unlock();
-
-					filenames.insert(tmp_filename);
-					links.push(tmp_link);				
 				}
 			}
 		}
@@ -133,7 +143,7 @@ int main()
 
 	input >> filename >> thread_count;
 	input.close();
-	
+
 	Crawler crawler(filename, thread_count);
 	crawler.parse();
 
@@ -142,8 +152,3 @@ int main()
 
 	return 0;
 }
-
-//1 thread 224 sec
-//4 threads 221 sec
-//8 threads 219 sec - extremum point
-//10 threads 219 sec
